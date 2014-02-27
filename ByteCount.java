@@ -85,6 +85,7 @@ public class ByteCount {
     job.setMapOutputValueClass(LongWritable.class);
     job.setMapperClass(ByteCountMapper.class);
     job.setReducerClass(ByteCountReducer.class);
+    job.setCombinerClass(ByteCountReducer.class);
     job.setOutputKeyClass(ByteWritable.class);
     job.setOutputValueClass(LongWritable.class);
     FileInputFormat.addInputPath(job, new Path(inputBase));
