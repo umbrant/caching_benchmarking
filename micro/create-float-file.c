@@ -3,6 +3,7 @@
  */
 
 #include <stdio.h>
+#include <stdlib.h>
 
 #define DOUBLE_SIZE sizeof(double)
 
