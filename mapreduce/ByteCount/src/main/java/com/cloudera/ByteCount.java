@@ -30,7 +30,6 @@ import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.Reducer;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
-import org.apache.hadoop.mapreduce.lib.input.TextInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.util.GenericOptionsParser;
 
@@ -42,13 +41,13 @@ public class ByteCount {
         Context context) throws IOException, InterruptedException {
       ByteBuffer buf = bufferWritable.getBuffer();
       final int bytesLength = buf.limit();
-      int[] counts = new int[256];
+      long[] counts = new long[256];
       for (int i = 0; i < bytesLength; i++) {
-        byte b = buf.get();
-        counts[b]++;
+        int value = buf.get() & 0xFF;
+        counts[value]++;
       }
-      for (byte i=0; i<counts.length; i++) {
-        ByteWritable key = new ByteWritable(i);
+      for (int i=0; i<counts.length; i++) {
+        ByteWritable key = new ByteWritable((byte)i);
         LongWritable value = new LongWritable(counts[i]);
         context.write(key, value);
       }
@@ -77,16 +76,21 @@ public class ByteCount {
     String inputBase = remArgs[0];
     String outputBase = remArgs[1];
     Job job = new Job(conf, "ByteCount");
-    job.setInputFormatClass(TextInputFormat.class);
+    job.setInputFormatClass(ByteBufferInputFormat.class);
+
     job.setMapOutputKeyClass(ByteWritable.class);
     job.setMapOutputValueClass(LongWritable.class);
+
     job.setMapperClass(ByteCountMapper.class);
     job.setReducerClass(ByteCountReducer.class);
     job.setCombinerClass(ByteCountReducer.class);
+    
     job.setOutputKeyClass(ByteWritable.class);
     job.setOutputValueClass(LongWritable.class);
+
     FileInputFormat.addInputPath(job, new Path(inputBase));
     FileOutputFormat.setOutputPath(job, new Path(outputBase));
+
     job.setJarByClass(ByteCount.class);
     System.exit(job.waitForCompletion(true) ? 0 : 1);
   }
