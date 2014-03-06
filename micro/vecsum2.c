@@ -193,14 +193,13 @@ static int vecsum_zcr(struct test_data *tdata, const struct options *opts)
 			goto done;
 		}
 		len = hadoopRzBufferLength(rzbuf);
-		buf = hadoopRzBufferGet(rzbuf);
-		if (!buf)
-			break;
+		if (len == 0) break;
 		if (len < VECSUM_CHUNK_SIZE) {
 			fprintf(stderr, "hadoopReadZero got a partial read "
 				"of length %d\n", len);
 			goto done;
 		}
+		buf = hadoopRzBufferGet(rzbuf);
 		sum += vecsum(buf, VECSUM_CHUNK_SIZE);
 		hadoopRzBufferFree(tdata->file, rzbuf);
 	}
