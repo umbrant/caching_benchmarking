@@ -170,7 +170,7 @@ static int check_byte_size(int byte_size, const char *const str)
 
 static double vecsum(const double *buf, int num_doubles)
 {
-	int i, size;
+	int i;
 	double sum = 0.0;
 	for (i = 0; i < num_doubles; i++) {
 		sum += buf[i];
@@ -214,14 +214,48 @@ static double vecsum(const double *buf, int num_doubles)
 
 #endif
 
-static int vecsum_zcr(struct test_data *tdata, const struct options *opts)
+static int vecsum_zcr_loop(int pass, struct test_data *tdata,
+		struct hadoopRzOptions *zopts, const struct options *opts)
 {
-	int ret;
 	int32_t len;
-	struct hadoopRzOptions *zopts = NULL;
-	struct hadoopRzBuffer *rzbuf = NULL;
 	double sum = 0.0;
 	const double *buf;
+	struct hadoopRzBuffer *rzbuf = NULL;
+	int ret;
+
+	while (1) {
+		rzbuf = hadoopReadZero(tdata->file, zopts, VECSUM_CHUNK_SIZE);
+		if (!rzbuf) {
+			ret = errno;
+			fprintf(stderr, "hadoopReadZero failed with error "
+				"code %d (%s)\n", ret, strerror(ret));
+			goto done;
+		}
+		len = hadoopRzBufferLength(rzbuf);
+		if (len == 0) break;
+		if (len < VECSUM_CHUNK_SIZE) {
+			fprintf(stderr, "hadoopReadZero got a partial read "
+				"of length %d\n", len);
+			ret = EINVAL;
+			goto done;
+		}
+		buf = hadoopRzBufferGet(rzbuf);
+		sum += vecsum(buf, VECSUM_CHUNK_SIZE / sizeof(double));
+		hadoopRzBufferFree(tdata->file, rzbuf);
+	}
+	printf("finished zcr pass %d.  sum = %g\n", pass, sum);
+	ret = 0;
+
+done:
+	if (rzbuf)
+		hadoopRzBufferFree(tdata->file, rzbuf);
+	return ret;
+}
+
+static int vecsum_zcr(struct test_data *tdata, const struct options *opts)
+{
+	int ret, pass;
+	struct hadoopRzOptions *zopts = NULL;
 
 	zopts = hadoopRzOptionsAlloc();
 	if (!zopts) {
@@ -239,50 +273,29 @@ static int vecsum_zcr(struct test_data *tdata, const struct options *opts)
 		perror("hadoopRzOptionsSetByteBufferPool failed: ");
 		goto done;
 	}
-	while (1) {
-		rzbuf = hadoopReadZero(tdata->file, zopts, VECSUM_CHUNK_SIZE);
-		if (!rzbuf) {
-			int err = errno;
-			fprintf(stderr, "hadoopReadZero failed with error "
-				"code %d (%s)\n", err, strerror(err));
+	for (pass = 0; pass < opts->passes; ++pass) {
+		ret = vecsum_zcr_loop(pass, tdata, zopts, opts);
+		if (ret) {
+			fprintf(stderr, "vecsum_zcr_loop pass %d failed "
+				"with error %d\n", pass, ret);
 			goto done;
 		}
-		len = hadoopRzBufferLength(rzbuf);
-		if (len == 0) break;
-		if (len < VECSUM_CHUNK_SIZE) {
-			fprintf(stderr, "hadoopReadZero got a partial read "
-				"of length %d\n", len);
-			goto done;
-		}
-		buf = hadoopRzBufferGet(rzbuf);
-		sum += vecsum(buf, VECSUM_CHUNK_SIZE / sizeof(double));
-		hadoopRzBufferFree(tdata->file, rzbuf);
+		hdfsSeek(tdata->fs, tdata->file, 0);
 	}
-	printf("finished zcr pass.  sum = %g\n", sum);
-
 	ret = 0;
 done:
-	if (rzbuf)
-		hadoopRzBufferFree(tdata->file, rzbuf);
 	if (zopts)
 		hadoopRzOptionsFree(zopts);
 	return ret;
 }
 
-static int vecsum_normal(struct test_data *tdata, const struct options *opts)
+static int vecsum_normal_loop(int pass, struct test_data *tdata,
+			const struct options *opts)
 {
-	int res;
-	int ret = 1;
 	double sum = 0.0;
 
-	tdata->buf = malloc(NORMAL_READ_CHUNK_SIZE);
-	if (!tdata->buf) {
-		fprintf(stderr, "failed to malloc buffer of size %d\n",
-			NORMAL_READ_CHUNK_SIZE);
-		goto done;
-	}
 	while (1) {
-		res = hdfsRead(tdata->fs, tdata->file, tdata->buf,
+		int res = hdfsRead(tdata->fs, tdata->file, tdata->buf,
 				NORMAL_READ_CHUNK_SIZE);
 		if (res == 0) // EOF
 			break;
@@ -290,20 +303,39 @@ static int vecsum_normal(struct test_data *tdata, const struct options *opts)
 			int err = errno;
 			fprintf(stderr, "hdfsRead failed with error %d (%s)\n",
 				err, strerror(err));
-			goto done;
+			return err;
 		}
 		if (res < NORMAL_READ_CHUNK_SIZE) {
 			fprintf(stderr, "hdfsRead got a partial read of "
 				"length %d\n", res);
-			goto done;
+			return EINVAL;
 		}
 		sum += vecsum(tdata->buf, NORMAL_READ_CHUNK_SIZE / sizeof(double));
 	}
-	printf("finished normal pass.  sum = %g\n", sum);
-	ret = 0;
+	printf("finished normal pass %d.  sum = %g\n", pass, sum);
+	return 0;
+}
 
-done:
-	return ret;
+static int vecsum_normal(struct test_data *tdata, const struct options *opts)
+{
+	int pass;
+
+	tdata->buf = malloc(NORMAL_READ_CHUNK_SIZE);
+	if (!tdata->buf) {
+		fprintf(stderr, "failed to malloc buffer of size %d\n",
+			NORMAL_READ_CHUNK_SIZE);
+		return ENOMEM;
+	}
+	for (pass = 0; pass < opts->passes; ++pass) {
+		int ret = vecsum_normal_loop(pass, tdata, opts);
+		if (ret) {
+			fprintf(stderr, "vecsum_normal_loop pass %d failed "
+				"with error %d\n", pass, ret);
+			return ret;
+		}
+		hdfsSeek(tdata->fs, tdata->file, 0);
+	}
+	return 0;
 }
 
 int main(void)
