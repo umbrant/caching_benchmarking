@@ -73,6 +73,8 @@ public class ByteBufferRecordReader
   private TaskAttemptContext context;
   private ReadStatistics readStats;
   private ElasticByteBufferPool bufferPool;
+  private boolean skipChecksums;
+
   /**
    * Enum for accessing read statistics.
    */
@@ -108,7 +110,8 @@ public class ByteBufferRecordReader
 
     this.readStats = new ReadStatistics();
     this.bufferPool = new ElasticByteBufferPool();
-
+    this.skipChecksums = job.getBoolean("bytecount.skipChecksums", false);
+    
     CompressionCodec codec = new CompressionCodecFactory(job).getCodec(file);
     if (null != codec) {
       isCompressedInput = true; 

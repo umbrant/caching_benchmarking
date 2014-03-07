@@ -22,6 +22,13 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
 
+import org.apache.commons.cli.BasicParser;
+import org.apache.commons.cli.CommandLine;
+import org.apache.commons.cli.CommandLineParser;
+import org.apache.commons.cli.Option;
+import org.apache.commons.cli.OptionBuilder;
+import org.apache.commons.cli.Options;
+import org.apache.commons.cli.ParseException;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.ByteWritable;
@@ -78,13 +85,55 @@ public class ByteCount {
 
   public static void main(String[] args) throws Exception {
     Configuration conf = new Configuration();
+
+
+    // Trim off the hadoop-specific args
     String[] remArgs = new GenericOptionsParser(conf, args).getRemainingArgs();
+
+    // Pull in properties
+    Options options = new Options();
+
+    Option property = OptionBuilder.withArgName("property=value")
+        .hasArgs(2)
+        .withValueSeparator()
+        .withDescription("use value for given property")
+        .create("D");
+    options.addOption(property);
+
+    Option skipChecksums = new Option("skipChecksums", "skip checksums");
+    options.addOption(skipChecksums);
+
+    CommandLineParser parser = new BasicParser();
+    CommandLine line = parser.parse(options, remArgs);
+
+    line.getOptionProperties("D");
+    String[] properties = line.getOptionValues("D");
+    if (properties == null) {
+      properties = new String[0];
+    }
+    for (String prop: properties) {
+      String[] split = prop.split("=");
+      if (split.length != 2) {
+        throw new IOException("Invalid k-v property " + prop);
+      }
+      conf.set(split[0], split[1]);
+      System.out.println("Set " + split[0] + " to " + split[1]);
+    }
+
+    if (line.hasOption("skipChecksums")) {
+      conf.setBoolean("bytecount.skipChecksums", true);
+      System.out.println("Skipping checksums");
+    }
+
+    // Get the positional arguments out
+    remArgs = line.getArgs();
     if (remArgs.length != 2) {
       System.err.println("Usage: ByteCount <inputBase> <outputBase>");
       System.exit(1);
     }
     String inputBase = remArgs[0];
     String outputBase = remArgs[1];
+
     Job job = new Job(conf, "ByteCount");
     job.setInputFormatClass(ByteBufferInputFormat.class);
 
