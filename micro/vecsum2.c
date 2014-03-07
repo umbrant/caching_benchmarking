@@ -21,8 +21,8 @@
 #include "immintrin.h"
 
 #define VECSUM_CHUNK_SIZE (8 * 1024 * 1024)
-#define ZCR_READ_CHUNK_SIZE (8 * 1024)
-#define NORMAL_READ_CHUNK_SIZE (8 * 1024)
+#define ZCR_READ_CHUNK_SIZE (1024 * 1024 * 4) // 8
+#define NORMAL_READ_CHUNK_SIZE (4 * 1024 * 1024)
 #define DOUBLES_PER_LOOP_ITER 8
 
 static double timespec_to_double(struct timespec *ts)
@@ -95,6 +95,9 @@ struct options {
 
 	// Nonzero if we should use ZCR
 	int zcr;
+
+	// Nonzero if we should skip the summation.
+	int skip_sum;
 };
 
 static struct options *options_create(void)
@@ -102,6 +105,7 @@ static struct options *options_create(void)
 	struct options *opts = NULL;
 	const char *pass_str;
 	const char *zcr_str;
+	const char *skip_sum_str;
 
 	opts = calloc(1, sizeof(struct options));
 	if (!opts) {
@@ -127,6 +131,14 @@ static struct options *options_create(void)
 			"number greater than 0.\n");
 		goto error;
 	}
+	skip_sum_str = getenv("VECSUM_SKIP_SUM");
+	if (!skip_sum_str) {
+		fprintf(stderr, "You must set the VECSUM_SKIP_SUM environment "
+			"variable to either 0 or 1 to disable or "
+			"enable vector sums.\n");
+		goto error;
+	}
+	opts->skip_sum = !!atoi(skip_sum_str);
 	zcr_str = getenv("VECSUM_ZCR");
 	if (!zcr_str) {
 		fprintf(stderr, "You must set the VECSUM_ZCR environment "
@@ -256,10 +268,13 @@ static double vecsum(const double *buf, int num_doubles)
 
 #else
 
-static double vecsum(const double *buf, int num_doubles)
+static double vecsum(const struct options *opts,
+		const double *buf, int num_doubles)
 {
 	int i;
 	double hi, lo;
+	if (opts->skip_sum)
+		return 0.0;
 	__m128d x0 = _mm_set_pd(0.0,0.0);
 	__m128d x1 = _mm_set_pd(0.0,0.0);
 	__m128d x2 = _mm_set_pd(0.0,0.0);
@@ -308,15 +323,16 @@ static int vecsum_zcr_loop(int pass, struct test_data *tdata,
 			goto done;
 		}
 		len = hadoopRzBufferLength(rzbuf);
-		if (len == 0) break;
+		buf = hadoopRzBufferGet(rzbuf);
+		if (!buf) break;
 		if (len < ZCR_READ_CHUNK_SIZE) {
 			fprintf(stderr, "hadoopReadZero got a partial read "
 				"of length %d\n", len);
 			ret = EINVAL;
 			goto done;
 		}
-		buf = hadoopRzBufferGet(rzbuf);
-		sum += vecsum(buf, ZCR_READ_CHUNK_SIZE / sizeof(double));
+		sum += vecsum(opts, buf,
+			ZCR_READ_CHUNK_SIZE / sizeof(double));
 		hadoopRzBufferFree(tdata->file, rzbuf);
 	}
 	printf("finished zcr pass %d.  sum = %g\n", pass, sum);
@@ -386,7 +402,8 @@ static int vecsum_normal_loop(int pass, struct test_data *tdata,
 				"length %d\n", res);
 			return EINVAL;
 		}
-		sum += vecsum(tdata->buf, NORMAL_READ_CHUNK_SIZE / sizeof(double));
+		sum += vecsum(opts, tdata->buf,
+			      NORMAL_READ_CHUNK_SIZE / sizeof(double));
 	}
 	printf("finished normal pass %d.  sum = %g\n", pass, sum);
 	return 0;
