@@ -208,6 +208,9 @@ int main(int argc, char*argv[]) {
           c_ptr += 8;
           d_ptr += 8;
         }
+        if (method == 'z') {
+          hadoopRzBufferFree(hdfsFile, rzbuf);
+        }
       }
       // Local file read
       if (method == 'r') {
@@ -216,9 +219,6 @@ int main(int argc, char*argv[]) {
       // hdfs zerocopy read
       // hdfs normal read
       else if (method == 'z' || method == 'h') {
-        if (method == 'z') {
-          hadoopRzBufferFree(hdfsFile, rzbuf);
-        }
         hdfsCloseFile(fs, hdfsFile);
       }
       printf("iter %d complete\n", j);
