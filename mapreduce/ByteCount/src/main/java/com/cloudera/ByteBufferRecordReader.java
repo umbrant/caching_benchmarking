@@ -21,6 +21,7 @@ package com.cloudera;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
+import java.util.EnumSet;
 
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.logging.Log;
@@ -31,8 +32,10 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.ReadOption;
 import org.apache.hadoop.fs.Seekable;
 import org.apache.hadoop.hdfs.DFSInputStream;
+import org.apache.hadoop.hdfs.DFSInputStream.ReadStatistics;
 import org.apache.hadoop.io.ElasticByteBufferPool;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.compress.CodecPool;
@@ -67,6 +70,18 @@ public class ByteBufferRecordReader
   private boolean isCompressedInput;
   private Decompressor decompressor;
   private InputStream inputStream;
+  private TaskAttemptContext context;
+  private ReadStatistics readStats;
+  private ElasticByteBufferPool bufferPool;
+  /**
+   * Enum for accessing read statistics.
+   */
+  public static enum READ_COUNTER {
+    BYTES_READ,
+    LOCAL_BYTES_READ,
+    SCR_BYTES_READ,
+    ZCR_BYTES_READ
+  };
 
   public ByteBufferRecordReader() {
   }
@@ -76,6 +91,7 @@ public class ByteBufferRecordReader
                          TaskAttemptContext context) throws IOException {
     FileSplit split = (FileSplit) genericSplit;
     Configuration job = context.getConfiguration();
+    this.context = context;
     final Path file = split.getPath();
     initialize(job, split.getStart(), split.getLength(), file);
   }
@@ -89,6 +105,9 @@ public class ByteBufferRecordReader
     // open the file and seek to the start of the split
     final FileSystem fs = file.getFileSystem(job);
     fileIn = fs.open(file);
+
+    this.readStats = new ReadStatistics();
+    this.bufferPool = new ElasticByteBufferPool();
 
     CompressionCodec codec = new CompressionCodecFactory(job).getCodec(file);
     if (null != codec) {
@@ -119,15 +138,26 @@ public class ByteBufferRecordReader
     if (pos >= end) {
       return false;
     }
-    ByteBuffer buf;
+    
     int numBytesRead = 0;
     // Use zero-copy ByteBuffer reads if available
-    if (inputStream instanceof DFSInputStream) {
-      DFSInputStream dfsIn = (DFSInputStream)inputStream;
-      ElasticByteBufferPool bufferPool = new ElasticByteBufferPool();
-      buf = dfsIn.read(bufferPool, (int)(end-start), null);
+    if (inputStream instanceof FSDataInputStream) {
+      FSDataInputStream fsIn = (FSDataInputStream)inputStream;
+      ByteBuffer buf = fsIn.read(bufferPool, (int)(end-start),
+          EnumSet.noneOf(ReadOption.class));
       numBytesRead += buf.limit();
       pos += buf.limit();
+      // Update stats
+      InputStream wrappedStream = fsIn.getWrappedStream();
+      if (wrappedStream instanceof DFSInputStream) {
+        DFSInputStream dfsIn = (DFSInputStream)wrappedStream;
+        updateStats(dfsIn.getReadStatistics());
+      }
+      // Switch out the buffers
+      if (value.getBuffer() != null) {
+        fsIn.releaseBuffer(value.getBuffer());
+      }
+      value.setByteBuffer(buf);
     }
     // Fallback to normal byte[] based reads with a copy to the ByteBuffer
     else {
@@ -135,10 +165,23 @@ public class ByteBufferRecordReader
       IOUtils.readFully(inputStream, b);
       numBytesRead += b.length;
       pos += b.length;
-      buf = ByteBuffer.wrap(b);
+      value.setByteBuffer(ByteBuffer.wrap(b));
     }
-    value.setByteBuffer(buf);
+    
     return numBytesRead > 0;
+  }
+
+  private void updateStats(ReadStatistics newStats) {
+    context.getCounter(READ_COUNTER.BYTES_READ).increment(
+        newStats.getTotalBytesRead() - readStats.getTotalBytesRead());
+    context.getCounter(READ_COUNTER.LOCAL_BYTES_READ).increment(
+        newStats.getTotalLocalBytesRead() - readStats.getTotalLocalBytesRead());
+    context.getCounter(READ_COUNTER.SCR_BYTES_READ).increment(
+        newStats.getTotalShortCircuitBytesRead() - readStats.getTotalShortCircuitBytesRead());
+    context.getCounter(READ_COUNTER.ZCR_BYTES_READ).increment(
+        newStats.getTotalZeroCopyBytesRead() - readStats.getTotalZeroCopyBytesRead());
+
+    this.readStats = new ReadStatistics(newStats);
   }
 
   @Override

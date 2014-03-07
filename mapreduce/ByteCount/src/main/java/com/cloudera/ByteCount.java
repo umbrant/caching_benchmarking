@@ -26,6 +26,8 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.ByteWritable;
 import org.apache.hadoop.io.LongWritable;
+import org.apache.hadoop.mapreduce.Counter;
+import org.apache.hadoop.mapreduce.Counters;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.Reducer;
@@ -33,7 +35,10 @@ import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.util.GenericOptionsParser;
 
+import com.cloudera.ByteBufferRecordReader.READ_COUNTER;
+
 public class ByteCount {
+
   public static class ByteCountMapper extends
       Mapper<LongWritable, ByteBufferWritable, ByteWritable, LongWritable> {
     @Override
@@ -66,6 +71,11 @@ public class ByteCount {
     }
   }
 
+  public static void printCounter(Counters counters, Enum<?> key) {
+    Counter c = counters.findCounter(key);
+    System.out.println("\t\t" + c.getDisplayName() + " = " + c.getValue());
+  }
+
   public static void main(String[] args) throws Exception {
     Configuration conf = new Configuration();
     String[] remArgs = new GenericOptionsParser(conf, args).getRemainingArgs();
@@ -92,6 +102,16 @@ public class ByteCount {
     FileOutputFormat.setOutputPath(job, new Path(outputBase));
 
     job.setJarByClass(ByteCount.class);
-    System.exit(job.waitForCompletion(true) ? 0 : 1);
+
+    boolean success = job.waitForCompletion(true);
+
+    Counters counters = job.getCounters();
+    System.out.println("\tRead counters");
+    printCounter(counters, READ_COUNTER.BYTES_READ);
+    printCounter(counters, READ_COUNTER.LOCAL_BYTES_READ);
+    printCounter(counters, READ_COUNTER.SCR_BYTES_READ);
+    printCounter(counters, READ_COUNTER.ZCR_BYTES_READ);
+
+    System.exit(success ? 0 : 1);
   }
 }

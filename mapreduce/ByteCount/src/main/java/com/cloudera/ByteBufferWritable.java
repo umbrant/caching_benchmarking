@@ -35,7 +35,7 @@ public class ByteBufferWritable extends BinaryComparable implements
    * Creates a new, 0-length ByteBufferWritable
    */
   public ByteBufferWritable() {
-    this.buffer = ByteBuffer.allocateDirect(0);
+    this.buffer = null;
   }
 
   /**
