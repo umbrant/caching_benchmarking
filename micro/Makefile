@@ -5,11 +5,13 @@
 CFLAGS=-Wall -Werror -mmmx -msse -msse2 -O3 -I$(HADOOP_HOME_BASE)/include
 LDFLAGS=-lhdfs -lrt -L$(HADOOP_HOME_BASE)/lib/native
 
-all: create-float-file vecsum2
+all: create-float-file vecsum1 vecsum2
 
 create-float-file: create-float-file.o
+
+vecsum1: vecsum1.o
 
 vecsum2: vecsum2.o
 
 clean:
-	rm -f create-float-file vecsum2 *.o
+	rm -f create-float-file vecsum1 vecsum2 *.o
