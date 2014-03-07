@@ -1,6 +1,8 @@
 /*
  * vim: ts=8:sw=8:tw=79:noet
  */
+#define _GNU_SOURCE
+
 #include <errno.h>
 #include <fcntl.h>
 #include <hdfs.h>
@@ -9,7 +11,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
+#include <sys/resource.h>
 #include <sys/stat.h>
+#include <sys/time.h>
 #include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
@@ -17,8 +21,70 @@
 #include "immintrin.h"
 
 #define VECSUM_CHUNK_SIZE (8 * 1024 * 1024)
+#define ZCR_READ_CHUNK_SIZE (8 * 1024)
 #define NORMAL_READ_CHUNK_SIZE (8 * 1024)
 #define DOUBLES_PER_LOOP_ITER 8
+
+static double timespec_to_double(struct timespec *ts)
+{
+	double sec = ts->tv_sec;
+	double nsec = ts->tv_nsec;
+	return sec + (nsec / 1000000000L);
+}
+
+struct stopwatch {
+	struct timespec start;
+	struct timespec stop;
+	struct rusage rusage;
+};
+
+static struct stopwatch *stopwatch_create(void)
+{
+	struct stopwatch *watch;
+
+	watch = calloc(1, sizeof(struct stopwatch));
+	if (!watch) {
+		fprintf(stderr, "failed to allocate memory for stopwatch\n");
+		goto error;
+	}
+	if (clock_gettime(CLOCK_MONOTONIC, &watch->start)) {
+		int err = errno;
+		fprintf(stderr, "clock_gettime(CLOCK_MONOTONIC) failed with "
+			"error %d (%s)\n", err, strerror(err));
+		goto error;
+	}
+	if (getrusage(RUSAGE_THREAD, &watch->rusage) < 0) {
+		int err = errno;
+		fprintf(stderr, "getrusage failed: error %d (%s)\n",
+			err, strerror(err));
+		goto error;
+	}
+	return watch;
+
+error:
+	free(watch);
+	return NULL;
+}
+
+static void stopwatch_stop(struct stopwatch *watch, long long bytes_read)
+{
+	double elapsed, rate;
+
+	if (clock_gettime(CLOCK_MONOTONIC, &watch->stop)) {
+		int err = errno;
+		fprintf(stderr, "clock_gettime(CLOCK_MONOTONIC) failed with "
+			"error %d (%s)\n", err, strerror(err));
+		goto done;
+	}
+	elapsed = timespec_to_double(&watch->stop) -
+		timespec_to_double(&watch->start);
+	rate = (bytes_read / elapsed) / (1024 * 1024 * 1024);
+	printf("stopwatch: took %.4g seconds to read %lld bytes, "
+		"for %.4g GB/s\n", elapsed, bytes_read, rate);
+	printf("stopwatch:  %.4g seconds\n", elapsed);
+done:
+	free(watch);
+}
 
 struct options {
 	// The path to read.
@@ -35,6 +101,7 @@ static struct options *options_create(void)
 {
 	struct options *opts = NULL;
 	const char *pass_str;
+	const char *zcr_str;
 
 	opts = calloc(1, sizeof(struct options));
 	if (!opts) {
@@ -60,7 +127,14 @@ static struct options *options_create(void)
 			"number greater than 0.\n");
 		goto error;
 	}
-	opts->zcr = !!getenv("VECSUM_ZCR");
+	zcr_str = getenv("VECSUM_ZCR");
+	if (!zcr_str) {
+		fprintf(stderr, "You must set the VECSUM_ZCR environment "
+			"variable to either 0 or 1 to disable or "
+			"enable zcr.\n");
+		goto error;
+	}
+	opts->zcr = !!atoi(zcr_str);
 	return opts;
 error:
 	free(opts);
@@ -75,6 +149,7 @@ static void options_free(struct options *opts)
 struct test_data {
 	hdfsFS fs;
 	hdfsFile file;
+	long long length;
 	double *buf;
 };
 
@@ -121,14 +196,15 @@ static struct test_data *test_data_create(const struct options *opts)
 			opts->path, err, strerror(err));
 		goto error;
 	}
-	if (pinfo->mSize == 0) {
+	tdata->length = pinfo->mSize;
+	if (tdata->length == 0) {
 		fprintf(stderr, "file %s has size 0.\n", opts->path);
 		goto error;
 	}
-	if (pinfo->mSize % VECSUM_CHUNK_SIZE) {
+	if (tdata->length % VECSUM_CHUNK_SIZE) {
 		fprintf(stderr, "file %s has size %lld, which is not aligned with "
 			"our VECSUM_CHUNK_SIZE of %d\n",
-			opts->path, (long long)pinfo->mSize, VECSUM_CHUNK_SIZE);
+			opts->path, tdata->length, VECSUM_CHUNK_SIZE);
 		goto error;
 	}
 	tdata->file = hdfsOpenFile(tdata->fs, opts->path, O_RDONLY, 0, 0, 0);
@@ -224,7 +300,7 @@ static int vecsum_zcr_loop(int pass, struct test_data *tdata,
 	int ret;
 
 	while (1) {
-		rzbuf = hadoopReadZero(tdata->file, zopts, VECSUM_CHUNK_SIZE);
+		rzbuf = hadoopReadZero(tdata->file, zopts, ZCR_READ_CHUNK_SIZE);
 		if (!rzbuf) {
 			ret = errno;
 			fprintf(stderr, "hadoopReadZero failed with error "
@@ -233,14 +309,14 @@ static int vecsum_zcr_loop(int pass, struct test_data *tdata,
 		}
 		len = hadoopRzBufferLength(rzbuf);
 		if (len == 0) break;
-		if (len < VECSUM_CHUNK_SIZE) {
+		if (len < ZCR_READ_CHUNK_SIZE) {
 			fprintf(stderr, "hadoopReadZero got a partial read "
 				"of length %d\n", len);
 			ret = EINVAL;
 			goto done;
 		}
 		buf = hadoopRzBufferGet(rzbuf);
-		sum += vecsum(buf, VECSUM_CHUNK_SIZE / sizeof(double));
+		sum += vecsum(buf, ZCR_READ_CHUNK_SIZE / sizeof(double));
 		hadoopRzBufferFree(tdata->file, rzbuf);
 	}
 	printf("finished zcr pass %d.  sum = %g\n", pass, sum);
@@ -343,8 +419,11 @@ int main(void)
 	int ret = 1;
 	struct options *opts = NULL;
 	struct test_data *tdata = NULL;
+	struct stopwatch *watch = NULL;
 
 	if (check_byte_size(VECSUM_CHUNK_SIZE, "VECSUM_CHUNK_SIZE") ||
+		check_byte_size(ZCR_READ_CHUNK_SIZE,
+				"ZCR_READ_CHUNK_SIZE") ||
 		check_byte_size(NORMAL_READ_CHUNK_SIZE,
 				"NORMAL_READ_CHUNK_SIZE")) {
 		goto done;
@@ -354,6 +433,9 @@ int main(void)
 		goto done;
 	tdata = test_data_create(opts);
 	if (!tdata)
+		goto done;
+	watch = stopwatch_create();
+	if (!watch)
 		goto done;
 	if (opts->zcr)
 		ret = vecsum_zcr(tdata, opts);
@@ -365,6 +447,8 @@ int main(void)
 	}
 	ret = 0;
 done:
+	if (watch)
+		stopwatch_stop(watch, tdata->length * opts->passes);
 	if (tdata)
 		test_data_free(tdata);
 	if (opts)
