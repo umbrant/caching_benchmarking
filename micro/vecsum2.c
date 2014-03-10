@@ -497,6 +497,7 @@ static int vecsum_local(const struct options *opts)
 	}
 	addr = mmap(NULL, length, PROT_READ, MAP_PRIVATE, fd, 0);
 	if (addr == MAP_FAILED) {
+		err = errno;
 		fprintf(stderr, "vecsum_local: mmap(%s) failed: "
 			"error %d (%s)\n", opts->path, err, strerror(err));
 		ret = EIO;
