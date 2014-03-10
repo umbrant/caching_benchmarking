@@ -86,6 +86,26 @@ done:
 	free(watch);
 }
 
+enum vecsum_type {
+	VECSUM_SCR = 0,
+	VECSUM_ZCR,
+	VECSUM_LOCAL,
+};
+
+#define VECSUM_TYPE_VALID_VALUES "scr, zcr, or local"
+
+int parse_vecsum_type(const char *str)
+{
+	if (strcasecmp(str, "scr") == 0)
+		return VECSUM_SCR;
+	else if (strcasecmp(str, "zcr") == 0)
+		return VECSUM_ZCR;
+	else if (strcasecmp(str, "local") == 0)
+		return VECSUM_LOCAL;
+	else
+		return -1;
+}
+
 struct options {
 	// The path to read.
 	const char *path;
@@ -93,19 +113,16 @@ struct options {
 	// The number of times to read the path.
 	int passes;
 
-	// Nonzero if we should use ZCR
-	int zcr;
-
-	// Nonzero if we should skip the summation.
-	int skip_sum;
+	// Type of vecsum to do
+	enum vecsum_type ty;
 };
 
 static struct options *options_create(void)
 {
 	struct options *opts = NULL;
 	const char *pass_str;
-	const char *zcr_str;
-	const char *skip_sum_str;
+	const char *ty_str;
+	int ty;
 
 	opts = calloc(1, sizeof(struct options));
 	if (!opts) {
@@ -131,22 +148,19 @@ static struct options *options_create(void)
 			"number greater than 0.\n");
 		goto error;
 	}
-	skip_sum_str = getenv("VECSUM_SKIP_SUM");
-	if (!skip_sum_str) {
-		fprintf(stderr, "You must set the VECSUM_SKIP_SUM environment "
-			"variable to either 0 or 1 to disable or "
-			"enable vector sums.\n");
+	ty_str = getenv("VECSUM_TYPE");
+	if (!ty_str) {
+		fprintf(stderr, "You must set the VECSUM_TYPE environment "
+			"variable to " VECSUM_TYPE_VALID_VALUES "\n");
 		goto error;
 	}
-	opts->skip_sum = !!atoi(skip_sum_str);
-	zcr_str = getenv("VECSUM_ZCR");
-	if (!zcr_str) {
-		fprintf(stderr, "You must set the VECSUM_ZCR environment "
-			"variable to either 0 or 1 to disable or "
-			"enable zcr.\n");
+	ty = parse_vecsum_type(ty_str);
+	if (ty < 0) {
+		fprintf(stderr, "Invalid VECSUM_TYPE environment variable.  "
+			"Valid values are " VECSUM_TYPE_VALID_VALUES "\n");
 		goto error;
 	}
-	opts->zcr = !!atoi(zcr_str);
+	opts->ty = ty;
 	return opts;
 error:
 	free(opts);
@@ -273,8 +287,6 @@ static double vecsum(const struct options *opts,
 {
 	int i;
 	double hi, lo;
-	if (opts->skip_sum)
-		return 0.0;
 	__m128d x0 = _mm_set_pd(0.0,0.0);
 	__m128d x1 = _mm_set_pd(0.0,0.0);
 	__m128d x2 = _mm_set_pd(0.0,0.0);
@@ -431,6 +443,75 @@ static int vecsum_normal(struct test_data *tdata, const struct options *opts)
 	return 0;
 }
 
+static int vecsum_local(const struct options *opts)
+{
+	void *addr = MAP_FAILED;
+	struct stat st_buf;
+	int pass, err, fd = -1, ret;
+	size_t length;
+	double sum;
+
+	fd = open(opts->path, O_RDONLY);
+	if (fd < 0) {
+		err = errno;
+		fprintf(stderr, "vecsum_local: failed to open %s: "
+			"error %d (%s)\n", opts->path, err, strerror(err));
+		ret = EIO;
+		goto done;
+	}
+	if (fstat(fd, &st_buf)) {
+		err = errno;
+		fprintf(stderr, "vecsum_local: fstat(%s) failed: "
+			"error %d (%s)\n", opts->path, err, strerror(err));
+		ret = EIO;
+		goto done;
+	}
+	length = st_buf.st_size;
+	if (length % VECSUM_CHUNK_SIZE) {
+		fprintf(stderr, "vecsum_local: file %s has size "
+			"%lld, but we need a size aligned with %lld\n",
+			opts->path, (long long)length,
+			(long long)VECSUM_CHUNK_SIZE);
+		ret = EINVAL;
+		goto done;
+	}
+	addr = mmap(NULL, length, PROT_READ, MAP_PRIVATE, fd, 0);
+	if (addr == MAP_FAILED) {
+		fprintf(stderr, "vecsum_local: mmap(%s) failed: "
+			"error %d (%s)\n", opts->path, err, strerror(err));
+		ret = EIO;
+		goto done;
+	}
+	for (pass = 0; pass < opts->passes; pass++) {
+		sum = vecsum(opts, addr, length / sizeof(double));
+		printf("finished vecsum_local pass %d.  sum = %g\n", pass, sum);
+	}
+	ret = 0;
+done:
+	if (addr != MAP_FAILED)
+		munmap(addr, length);
+	if (fd >= 0)
+		close(fd);
+	return ret;
+}
+
+static long long vecsum_length(const struct options *opts,
+				const struct test_data *tdata)
+{
+	if (opts->ty == VECSUM_LOCAL) {
+		struct stat st_buf = { 0 };
+		if (stat(opts->path, &st_buf)) {
+			int err = errno;
+			fprintf(stderr, "vecsum_length: stat(%s) failed: "
+				"error %d (%s)\n", opts->path, err, strerror(err));
+			return -EIO;
+		}
+		return st_buf.st_size;
+	} else {
+		return tdata->length;
+	}
+}
+
 int main(void)
 {
 	int ret = 1;
@@ -448,24 +529,37 @@ int main(void)
 	opts = options_create();
 	if (!opts)
 		goto done;
-	tdata = test_data_create(opts);
-	if (!tdata)
-		goto done;
+	if (opts->ty != VECSUM_LOCAL) {
+		tdata = test_data_create(opts);
+		if (!tdata)
+			goto done;
+	}
 	watch = stopwatch_create();
 	if (!watch)
 		goto done;
-	if (opts->zcr)
-		ret = vecsum_zcr(tdata, opts);
-	else
+	switch (opts->ty) {
+	case VECSUM_SCR:
 		ret = vecsum_normal(tdata, opts);
+		break;
+	case VECSUM_ZCR:
+		ret = vecsum_zcr(tdata, opts);
+		break;
+	case VECSUM_LOCAL:
+		ret = vecsum_local(opts);
+		break;
+	}
 	if (ret) {
 		fprintf(stderr, "vecsum failed with error %d\n", ret);
 		goto done;
 	}
 	ret = 0;
 done:
-	if (watch)
-		stopwatch_stop(watch, tdata->length * opts->passes);
+	if (watch) {
+		long long length = vecsum_length(opts, tdata);
+		if (length >= 0) {
+			stopwatch_stop(watch, length * opts->passes);
+		}
+	}
 	if (tdata)
 		test_data_free(tdata);
 	if (opts)
