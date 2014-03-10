@@ -21,6 +21,8 @@ package com.cloudera;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
+import java.util.Map.Entry;
+import java.util.Properties;
 
 import org.apache.commons.cli.BasicParser;
 import org.apache.commons.cli.CommandLine;
@@ -106,18 +108,11 @@ public class ByteCount {
     CommandLineParser parser = new BasicParser();
     CommandLine line = parser.parse(options, remArgs);
 
-    line.getOptionProperties("D");
-    String[] properties = line.getOptionValues("D");
-    if (properties == null) {
-      properties = new String[0];
-    }
-    for (String prop: properties) {
-      String[] split = prop.split("=");
-      if (split.length != 2) {
-        throw new IOException("Invalid k-v property " + prop);
-      }
-      conf.set(split[0], split[1]);
-      System.out.println("Set " + split[0] + " to " + split[1]);
+    Properties properties = line.getOptionProperties("D");
+    for (Entry<Object, Object> prop: properties.entrySet()) {
+      conf.set(prop.getKey().toString(), prop.getValue().toString());
+      System.out.println("Set config key " + prop.getKey() + " to "
+          + prop.getValue());
     }
 
     if (line.hasOption("skipChecksums")) {

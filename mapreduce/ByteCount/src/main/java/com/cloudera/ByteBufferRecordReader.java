@@ -73,7 +73,7 @@ public class ByteBufferRecordReader
   private TaskAttemptContext context;
   private ReadStatistics readStats;
   private ElasticByteBufferPool bufferPool;
-  private boolean skipChecksums;
+  private EnumSet<ReadOption> readOption;
 
   /**
    * Enum for accessing read statistics.
@@ -110,7 +110,10 @@ public class ByteBufferRecordReader
 
     this.readStats = new ReadStatistics();
     this.bufferPool = new ElasticByteBufferPool();
-    this.skipChecksums = job.getBoolean("bytecount.skipChecksums", false);
+    boolean skipChecksums = job.getBoolean("bytecount.skipChecksums", false);
+    this.readOption =
+        skipChecksums ? EnumSet.of(ReadOption.SKIP_CHECKSUMS) : EnumSet
+            .noneOf(ReadOption.class);
     
     CompressionCodec codec = new CompressionCodecFactory(job).getCodec(file);
     if (null != codec) {
@@ -146,8 +149,7 @@ public class ByteBufferRecordReader
     // Use zero-copy ByteBuffer reads if available
     if (inputStream instanceof FSDataInputStream) {
       FSDataInputStream fsIn = (FSDataInputStream)inputStream;
-      ByteBuffer buf = fsIn.read(bufferPool, (int)(end-start),
-          EnumSet.noneOf(ReadOption.class));
+      ByteBuffer buf = fsIn.read(bufferPool, (int)(end-start), readOption);
       numBytesRead += buf.limit();
       pos += buf.limit();
       // Update stats
