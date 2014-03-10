@@ -288,14 +288,7 @@ static double vecsum(const struct options *opts,
 {
 	int i;
 	double hi, lo;
-	__m128d x0 = _mm_set_pd(0.0,0.0);
-	__m128d x1 = _mm_set_pd(0.0,0.0);
-	__m128d x2 = _mm_set_pd(0.0,0.0);
-	__m128d x3 = _mm_set_pd(0.0,0.0);
-	__m128d x4 = _mm_set_pd(0.0,0.0);
-	__m128d x5 = _mm_set_pd(0.0,0.0);
-	__m128d x6 = _mm_set_pd(0.0,0.0);
-	__m128d x7 = _mm_set_pd(0.0,0.0);
+	__m128d x0, x1, x2, x3, x4, x5, x6, x7;
 	__m128d sum0 = _mm_set_pd(0.0,0.0);
 	__m128d sum1 = _mm_set_pd(0.0,0.0);
 	__m128d sum2 = _mm_set_pd(0.0,0.0);
