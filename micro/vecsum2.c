@@ -25,7 +25,11 @@
 #define NORMAL_READ_CHUNK_SIZE (4 * 1024 * 1024)
 #define DOUBLES_PER_LOOP_ITER 16
 
-static double timespec_to_double(struct timespec *ts)
+#ifdef __GNUC__
+#define restrict __restrict__
+#endif
+
+static double timespec_to_double(const struct timespec *restrict ts)
 {
 	double sec = ts->tv_sec;
 	double nsec = ts->tv_nsec;
@@ -66,7 +70,8 @@ error:
 	return NULL;
 }
 
-static void stopwatch_stop(struct stopwatch *watch, long long bytes_read)
+static void stopwatch_stop(struct stopwatch *restrict watch,
+		long long bytes_read)
 {
 	double elapsed, rate;
 
@@ -179,7 +184,7 @@ struct test_data {
 	double *buf;
 };
 
-static void test_data_free(struct test_data *tdata)
+static void test_data_free(struct test_data *restrict tdata)
 {
 	if (tdata->fs) {
 		free(tdata->buf);
@@ -191,7 +196,7 @@ static void test_data_free(struct test_data *tdata)
 	free(tdata);
 }
 
-static struct test_data *test_data_create(const struct options *opts)
+static struct test_data *test_data_create(const struct options *restrict opts)
 {
 	struct test_data *tdata = NULL;
 	struct hdfsBuilder *builder = NULL;
@@ -283,8 +288,8 @@ static double vecsum(const double *buf, int num_doubles)
 
 #else
 
-static double vecsum(const struct options *opts,
-		const double *buf, int num_doubles)
+static double vecsum(const struct options *restrict opts,
+		const double *restrict buf, int num_doubles)
 {
 	int i;
 	double hi, lo;
@@ -329,8 +334,9 @@ static double vecsum(const struct options *opts,
 
 #endif
 
-static int vecsum_zcr_loop(int pass, struct test_data *tdata,
-		struct hadoopRzOptions *zopts, const struct options *opts)
+static int vecsum_zcr_loop(int pass, struct test_data *restrict tdata,
+		struct hadoopRzOptions *restrict zopts,
+		const struct options *restrict opts)
 {
 	int32_t len;
 	double sum = 0.0;
@@ -368,7 +374,8 @@ done:
 	return ret;
 }
 
-static int vecsum_zcr(struct test_data *tdata, const struct options *opts)
+static int vecsum_zcr(struct test_data *restrict tdata,
+		const struct options *restrict opts)
 {
 	int ret, pass;
 	struct hadoopRzOptions *zopts = NULL;
@@ -405,8 +412,8 @@ done:
 	return ret;
 }
 
-static int vecsum_normal_loop(int pass, struct test_data *tdata,
-			const struct options *opts)
+static int vecsum_normal_loop(int pass, const struct test_data *restrict tdata,
+			const struct options *restrict opts)
 {
 	double sum = 0.0;
 
@@ -433,7 +440,8 @@ static int vecsum_normal_loop(int pass, struct test_data *tdata,
 	return 0;
 }
 
-static int vecsum_normal(struct test_data *tdata, const struct options *opts)
+static int vecsum_normal(struct test_data *restrict tdata,
+			const struct options *restrict opts)
 {
 	int pass;
 
@@ -507,8 +515,8 @@ done:
 	return ret;
 }
 
-static long long vecsum_length(const struct options *opts,
-				const struct test_data *tdata)
+static long long vecsum_length(const struct options *restrict opts,
+				const struct test_data *restrict tdata)
 {
 	if (opts->ty == VECSUM_LOCAL) {
 		struct stat st_buf = { 0 };
