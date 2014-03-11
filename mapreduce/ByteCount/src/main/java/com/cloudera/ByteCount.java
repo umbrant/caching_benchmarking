@@ -35,9 +35,11 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.ByteWritable;
 import org.apache.hadoop.io.LongWritable;
+import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapreduce.Counter;
 import org.apache.hadoop.mapreduce.Counters;
 import org.apache.hadoop.mapreduce.Job;
+import org.apache.hadoop.mapreduce.MRJobConfig;
 import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.Reducer;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
@@ -86,8 +88,7 @@ public class ByteCount {
   }
 
   public static void main(String[] args) throws Exception {
-    Configuration conf = new Configuration();
-
+    JobConf conf = new JobConf(new Configuration());
 
     // Trim off the hadoop-specific args
     String[] remArgs = new GenericOptionsParser(conf, args).getRemainingArgs();
@@ -120,6 +121,10 @@ public class ByteCount {
       System.out.println("Skipping checksums");
     }
 
+    // Profiling information
+    conf.set(MRJobConfig.TASK_MAP_PROFILE_PARAMS,
+        "-agentlib:hprof=cpu=samples,depth=100,interval=1,lineno=y,thread=y,file=%s");
+
     // Get the positional arguments out
     remArgs = line.getArgs();
     if (remArgs.length != 2) {
@@ -129,7 +134,13 @@ public class ByteCount {
     String inputBase = remArgs[0];
     String outputBase = remArgs[1];
 
-    Job job = new Job(conf, "ByteCount");
+    Job job = Job.getInstance(conf);
+
+    // Enable profiling
+    job.setProfileEnabled(true);
+    job.setProfileTaskRange(true, "0");
+    job.setProfileTaskRange(false, "0");
+    
     job.setInputFormatClass(ByteBufferInputFormat.class);
 
     job.setMapOutputKeyClass(ByteWritable.class);
