@@ -84,25 +84,25 @@ static void stopwatch_stop(struct stopwatch *restrict watch,
 	elapsed = timespec_to_double(&watch->stop) -
 		timespec_to_double(&watch->start);
 	rate = (bytes_read / elapsed) / (1024 * 1024 * 1024);
-	printf("stopwatch: took %.4g seconds to read %lld bytes, "
-		"for %.4g GB/s\n", elapsed, bytes_read, rate);
-	printf("stopwatch:  %.4g seconds\n", elapsed);
+	printf("stopwatch: took %.5g seconds to read %lld bytes, "
+		"for %.5g GB/s\n", elapsed, bytes_read, rate);
+	printf("stopwatch:  %.5g seconds\n", elapsed);
 done:
 	free(watch);
 }
 
 enum vecsum_type {
-	VECSUM_SCR = 0,
+	VECSUM_LIBHDFS = 0,
 	VECSUM_ZCR,
 	VECSUM_LOCAL,
 };
 
-#define VECSUM_TYPE_VALID_VALUES "scr, zcr, or local"
+#define VECSUM_TYPE_VALID_VALUES "libhdfs, zcr, or local"
 
 int parse_vecsum_type(const char *str)
 {
-	if (strcasecmp(str, "scr") == 0)
-		return VECSUM_SCR;
+	if (strcasecmp(str, "libhdfs") == 0)
+		return VECSUM_LIBHDFS;
 	else if (strcasecmp(str, "zcr") == 0)
 		return VECSUM_ZCR;
 	else if (strcasecmp(str, "local") == 0)
@@ -352,9 +352,9 @@ static int vecsum_zcr_loop(int pass, struct test_data *restrict tdata,
 				"code %d (%s)\n", ret, strerror(ret));
 			goto done;
 		}
-		len = hadoopRzBufferLength(rzbuf);
 		buf = hadoopRzBufferGet(rzbuf);
 		if (!buf) break;
+		len = hadoopRzBufferLength(rzbuf);
 		if (len < ZCR_READ_CHUNK_SIZE) {
 			fprintf(stderr, "hadoopReadZero got a partial read "
 				"of length %d\n", len);
@@ -412,13 +412,35 @@ done:
 	return ret;
 }
 
+tSize hdfsReadFully(hdfsFS fs, hdfsFile f, void* buffer, tSize length)
+{
+    uint8_t *buf = buffer;
+    tSize ret, nread = 0;
+
+    while (length > 0) {
+        ret = hdfsRead(fs, f, buf, length);
+        if (ret < 0) {
+            if (errno != EINTR) {
+                return -1;
+            }
+        }
+        if (ret == 0) {
+            break;
+        }
+        nread += ret;
+        length -= ret;
+        buf += ret;
+    }
+    return nread;
+}
+
 static int vecsum_normal_loop(int pass, const struct test_data *restrict tdata,
 			const struct options *restrict opts)
 {
 	double sum = 0.0;
 
 	while (1) {
-		int res = hdfsRead(tdata->fs, tdata->file, tdata->buf,
+		int res = hdfsReadFully(tdata->fs, tdata->file, tdata->buf,
 				NORMAL_READ_CHUNK_SIZE);
 		if (res == 0) // EOF
 			break;
@@ -440,7 +462,7 @@ static int vecsum_normal_loop(int pass, const struct test_data *restrict tdata,
 	return 0;
 }
 
-static int vecsum_normal(struct test_data *restrict tdata,
+static int vecsum_libhdfs(struct test_data *restrict tdata,
 			const struct options *restrict opts)
 {
 	int pass;
@@ -559,8 +581,8 @@ int main(void)
 	if (!watch)
 		goto done;
 	switch (opts->ty) {
-	case VECSUM_SCR:
-		ret = vecsum_normal(tdata, opts);
+	case VECSUM_LIBHDFS:
+		ret = vecsum_libhdfs(tdata, opts);
 		break;
 	case VECSUM_ZCR:
 		ret = vecsum_zcr(tdata, opts);
