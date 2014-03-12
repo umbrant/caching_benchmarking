@@ -1,0 +1,4 @@
+a2404.halxg.cloudera.com
+a2406.halxg.cloudera.com
+a2408.halxg.cloudera.com
+a2424.halxg.cloudera.com
