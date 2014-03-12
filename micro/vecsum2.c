@@ -22,7 +22,7 @@
 
 #define VECSUM_CHUNK_SIZE (8 * 1024 * 1024)
 #define ZCR_READ_CHUNK_SIZE (1024 * 1024 * 8) // 8
-#define NORMAL_READ_CHUNK_SIZE (4 * 1024 * 1024)
+#define NORMAL_READ_CHUNK_SIZE (8 * 1024 * 1024)
 #define DOUBLES_PER_LOOP_ITER 16
 
 #ifdef __GNUC__
@@ -575,7 +575,7 @@ int main(void)
 	}
 	ret = 0;
 done:
-	if (watch) {
+	if (watch && (ret == 0)) {
 		long long length = vecsum_length(opts, tdata);
 		if (length >= 0) {
 			stopwatch_stop(watch, length * opts->passes);
