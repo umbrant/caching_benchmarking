@@ -62,7 +62,7 @@ ax.set_title('vecsum2 throughput')
 ax.set_xticks(ind+barwidth)
 ax.set_xticklabels( ('TCP', 'TCP-no-csum', 'SCR', 'SCR-no-csum', 'zero-copy') )
 
-ax.legend( (rects1[0], rects2[0]), ('1 GB', '20 GB') )
+ax.legend( (rects1[0], rects2[0]), ('1 GB', '20 GB'), loc='left')
 
 plt.savefig("out.png")
 
