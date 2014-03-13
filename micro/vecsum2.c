@@ -120,6 +120,9 @@ struct options {
 
 	// Type of vecsum to do
 	enum vecsum_type ty;
+
+	// RPC address to use for HDFS
+	const char *rpc_address;
 };
 
 static struct options *options_create(void)
@@ -166,6 +169,10 @@ static struct options *options_create(void)
 		goto error;
 	}
 	opts->ty = ty;
+	opts->rpc_address = getenv("VECSUM_RPC_ADDRESS");
+	if (!opts->rpc_address) {
+		opts->rpc_address = "default";
+	}
 	return opts;
 error:
 	free(opts);
@@ -212,7 +219,7 @@ static struct test_data *test_data_create(const struct options *restrict opts)
 		fprintf(stderr, "Failed to create builder.\n");
 		goto error;
 	}
-	hdfsBuilderSetNameNode(builder, "default");
+	hdfsBuilderSetNameNode(builder, opts->rpc_address);
 	hdfsBuilderConfSetStr(builder, 
 		"dfs.client.read.shortcircuit.skip.checksum", "true");
 	tdata->fs = hdfsBuilderConnect(builder);
