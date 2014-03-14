@@ -23,6 +23,8 @@ while true; do
 	if [ "$MET" == "true" ]; then
 		break
 	fi
+	echo "Waiting..."
+	sleep 10
 done
 
 echo "All caching is complete"
