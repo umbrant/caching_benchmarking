@@ -8,9 +8,6 @@ shift
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-echo "Invalidating and refreshing store sales metadata"
-impala-shell -i a2404.halxg.cloudera.com -f sql/invalidate_store_sales.sql
-
 echo "Dropping caches across the cluster..."
 ../drop_caches.sh
 

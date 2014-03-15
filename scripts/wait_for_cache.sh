@@ -14,7 +14,7 @@ while true; do
 		NEEDED=`echo $line | awk '{print $6}'`
 		CACHED=`echo $line | awk '{print $7}'`
 		if [ "$NEEDED" -ne "$CACHED" ]; then
-			echo "$MYPATH has $NEEDED of $CACHED bytes"
+			echo "$MYPATH has $CACHED of $NEEDED bytes"
 			MET="false"
 			break
 		fi
