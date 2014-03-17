@@ -16,9 +16,11 @@ echo -n > $OUTPUT
 echo "Invalidating and refreshing metadata"
 $DIR/invalidate_refresh.sh 2>&1
 
+echo "Dropping caches once at beginning..."
+$DIR/../drop_caches.sh 2>&1
+
 echo "Running $RUNS queries..."
 for i in `seq 1 $RUNS`; do
-	$DIR/../drop_caches.sh 2>&1
 	impala-shell -i a2404.halxg.cloudera.com -f $DIR/sql/count_store_sales_2002-08-04.sql 2>&1 | grep Returned >> $OUTPUT
 	echo "Query $i complete"
 done
