@@ -2,6 +2,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+# 1 G x 20
+
 def avg(vec):
     numeric_vec = [int(s.replace(",", "")) for s in vec]
     return np.average(numeric_vec)
