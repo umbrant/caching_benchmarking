@@ -21,10 +21,13 @@ package com.cloudera;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.EnumSet;
+import java.net.URI;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.CacheFlag;
 import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.BlockLocation;
+import org.apache.hadoop.hdfs.DistributedFileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.RemoteIterator;
 import org.apache.hadoop.hdfs.client.HdfsAdmin;
@@ -39,6 +42,7 @@ public class CacheTool {
   private static void usage() {
     System.out.println("CacheTool removeAll");
     System.out.println("CacheTool cache <amount>");
+    System.out.println("CacheTool locations <path>");
   }
 
   private static void removeAll() throws IOException {
@@ -84,6 +88,28 @@ public class CacheTool {
     }
   }
 
+  private static void printLocations(DistributedFileSystem fs, String path)
+      throws IOException {
+    BlockLocation[] locs = 
+      fs.getFileBlockLocations(new Path(path), 0, Integer.MAX_VALUE);
+    if (locs == null) {
+      System.out.println("loc = null");
+    } else if (locs.length == 0) {
+      System.out.println("loc = (empty array)");
+    } else {
+      for (BlockLocation loc : locs) {
+        StringBuilder bld = new StringBuilder();
+        String prefix = "";
+        for(String h: loc.getCachedHosts()) {
+          bld.append(prefix);
+          bld.append(h);
+          prefix = ",";
+        }
+        System.out.println(loc + ": cached{" + bld.toString() + "}");
+      }
+    }
+  }
+
   public static void main(String[] args) throws Exception {
 
     if (args.length == 0) {
@@ -92,7 +118,10 @@ public class CacheTool {
     }
 
     conf = new Configuration();
-    admin = new HdfsAdmin(FileSystem.getDefaultUri(conf), conf);
+    URI uri = FileSystem.getDefaultUri(conf);
+    DistributedFileSystem fs =
+      (DistributedFileSystem)FileSystem.get(uri, conf);
+    admin = new HdfsAdmin(uri, conf);
 
     String command = args[0];
     if (command.equals("removeAll")) {
@@ -104,6 +133,13 @@ public class CacheTool {
       }
       final long needed = Long.parseLong(args[1]);
       cache(needed);
+    } else if (command.equals("locations")) {
+      if (args.length != 2) {
+        usage();
+        System.exit(1);
+      }
+      String path = args[1];
+      printLocations(fs, path);
     } else {
       usage();
       System.exit(-2);
