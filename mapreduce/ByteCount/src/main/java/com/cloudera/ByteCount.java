@@ -106,6 +106,9 @@ public class ByteCount {
     Option skipChecksums = new Option("skipChecksums", "skip checksums");
     options.addOption(skipChecksums);
 
+    Option profile = new Option("profile", "profile tasks");
+    options.addOption(profile);
+
     CommandLineParser parser = new BasicParser();
     CommandLine line = parser.parse(options, remArgs);
 
@@ -121,9 +124,11 @@ public class ByteCount {
       System.out.println("Skipping checksums");
     }
 
-    // Profiling information
-    conf.set(MRJobConfig.TASK_MAP_PROFILE_PARAMS,
-        "-agentlib:hprof=cpu=samples,depth=100,interval=1,lineno=y,thread=y,file=%s");
+    if (line.hasOption("profile")) {
+      conf.set(MRJobConfig.TASK_MAP_PROFILE_PARAMS,
+          "-agentlib:hprof=cpu=samples,depth=100,interval=1,lineno=y,thread=y,file=%s");
+      System.out.println("Profiling map tasks");
+    }
 
     // Get the positional arguments out
     remArgs = line.getArgs();
@@ -136,10 +141,11 @@ public class ByteCount {
 
     Job job = Job.getInstance(conf);
 
-    // Enable profiling
-    job.setProfileEnabled(true);
-    job.setProfileTaskRange(true, "0");
-    job.setProfileTaskRange(false, "0");
+    if (line.hasOption("profile")) {
+      job.setProfileEnabled(true);
+      job.setProfileTaskRange(true, "0");
+      job.setProfileTaskRange(false, "0");
+    }
     
     job.setInputFormatClass(ByteBufferInputFormat.class);
 
