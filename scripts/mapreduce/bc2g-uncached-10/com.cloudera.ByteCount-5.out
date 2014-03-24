@@ -1,0 +1,117 @@
+14/03/24 11:15:13 INFO client.RMProxy: Connecting to ResourceManager at a2402.halxg.cloudera.com/10.20.212.10:8032
+14/03/24 11:15:14 INFO input.FileInputFormat: Total input paths to process : 1
+14/03/24 11:15:15 INFO mapreduce.JobSubmitter: number of splits:137
+14/03/24 11:15:15 INFO mapreduce.JobSubmitter: Submitting tokens for job: job_1395440737522_0074
+14/03/24 11:15:15 INFO impl.YarnClientImpl: Submitted application application_1395440737522_0074
+14/03/24 11:15:15 INFO mapreduce.Job: The url to track the job: http://a2402.halxg.cloudera.com:8088/proxy/application_1395440737522_0074/
+14/03/24 11:15:15 INFO mapreduce.Job: Running job: job_1395440737522_0074
+14/03/24 11:15:28 INFO mapreduce.Job: Job job_1395440737522_0074 running in uber mode : false
+14/03/24 11:15:28 INFO mapreduce.Job:  map 0% reduce 0%
+14/03/24 11:15:36 INFO mapreduce.Job:  map 1% reduce 0%
+14/03/24 11:15:38 INFO mapreduce.Job:  map 2% reduce 0%
+14/03/24 11:15:39 INFO mapreduce.Job:  map 12% reduce 0%
+14/03/24 11:15:40 INFO mapreduce.Job:  map 15% reduce 0%
+14/03/24 11:15:41 INFO mapreduce.Job:  map 18% reduce 0%
+14/03/24 11:15:42 INFO mapreduce.Job:  map 20% reduce 0%
+14/03/24 11:15:44 INFO mapreduce.Job:  map 21% reduce 0%
+14/03/24 11:15:45 INFO mapreduce.Job:  map 25% reduce 0%
+14/03/24 11:15:46 INFO mapreduce.Job:  map 28% reduce 0%
+14/03/24 11:15:47 INFO mapreduce.Job:  map 31% reduce 0%
+14/03/24 11:15:48 INFO mapreduce.Job:  map 37% reduce 0%
+14/03/24 11:15:49 INFO mapreduce.Job:  map 39% reduce 0%
+14/03/24 11:15:50 INFO mapreduce.Job:  map 40% reduce 0%
+14/03/24 11:15:51 INFO mapreduce.Job:  map 41% reduce 0%
+14/03/24 11:15:52 INFO mapreduce.Job:  map 44% reduce 0%
+14/03/24 11:15:53 INFO mapreduce.Job:  map 47% reduce 0%
+14/03/24 11:15:54 INFO mapreduce.Job:  map 50% reduce 0%
+14/03/24 11:15:55 INFO mapreduce.Job:  map 55% reduce 0%
+14/03/24 11:15:56 INFO mapreduce.Job:  map 58% reduce 0%
+14/03/24 11:15:57 INFO mapreduce.Job:  map 60% reduce 0%
+14/03/24 11:15:58 INFO mapreduce.Job:  map 61% reduce 0%
+14/03/24 11:15:59 INFO mapreduce.Job:  map 63% reduce 0%
+14/03/24 11:16:00 INFO mapreduce.Job:  map 67% reduce 0%
+14/03/24 11:16:01 INFO mapreduce.Job:  map 70% reduce 0%
+14/03/24 11:16:02 INFO mapreduce.Job:  map 74% reduce 0%
+14/03/24 11:16:03 INFO mapreduce.Job:  map 77% reduce 0%
+14/03/24 11:16:04 INFO mapreduce.Job:  map 80% reduce 0%
+14/03/24 11:16:06 INFO mapreduce.Job:  map 82% reduce 0%
+14/03/24 11:16:07 INFO mapreduce.Job:  map 86% reduce 0%
+14/03/24 11:16:08 INFO mapreduce.Job:  map 90% reduce 0%
+14/03/24 11:16:09 INFO mapreduce.Job:  map 93% reduce 0%
+14/03/24 11:16:10 INFO mapreduce.Job:  map 97% reduce 0%
+14/03/24 11:16:11 INFO mapreduce.Job:  map 100% reduce 0%
+14/03/24 11:16:13 INFO mapreduce.Job:  map 100% reduce 8%
+14/03/24 11:16:14 INFO mapreduce.Job:  map 100% reduce 20%
+14/03/24 11:16:15 INFO mapreduce.Job:  map 100% reduce 30%
+14/03/24 11:16:16 INFO mapreduce.Job:  map 100% reduce 52%
+14/03/24 11:16:17 INFO mapreduce.Job:  map 100% reduce 68%
+14/03/24 11:16:19 INFO mapreduce.Job:  map 100% reduce 73%
+14/03/24 11:16:20 INFO mapreduce.Job:  map 100% reduce 85%
+14/03/24 11:16:21 INFO mapreduce.Job:  map 100% reduce 100%
+14/03/24 11:16:22 INFO mapreduce.Job: Job job_1395440737522_0074 completed successfully
+14/03/24 11:16:22 INFO mapreduce.Job: Counters: 53
+	File System Counters
+		FILE: Number of bytes read=144841
+		FILE: Number of bytes written=17195483
+		FILE: Number of read operations=0
+		FILE: Number of large read operations=0
+		FILE: Number of write operations=0
+		HDFS: Number of bytes read=18274726039
+		HDFS: Number of bytes written=2741
+		HDFS: Number of read operations=531
+		HDFS: Number of large read operations=0
+		HDFS: Number of write operations=80
+	Job Counters 
+		Launched map tasks=137
+		Launched reduce tasks=40
+		Data-local map tasks=137
+		Total time spent by all maps in occupied slots (ms)=827596
+		Total time spent by all reduces in occupied slots (ms)=201892
+		Total time spent by all map tasks (ms)=827596
+		Total time spent by all reduce tasks (ms)=201892
+		Total vcore-seconds taken by all map tasks=827596
+		Total vcore-seconds taken by all reduce tasks=201892
+		Total megabyte-seconds taken by all map tasks=847458304
+		Total megabyte-seconds taken by all reduce tasks=206737408
+	Map-Reduce Framework
+		Map input records=137
+		Map output records=35072
+		Map output bytes=315648
+		Map output materialized bytes=398988
+		Input split bytes=21920
+		Combine input records=35072
+		Combine output records=35072
+		Reduce input groups=256
+		Reduce shuffle bytes=398988
+		Reduce input records=35072
+		Reduce output records=256
+		Spilled Records=70144
+		Shuffled Maps =5480
+		Failed Shuffles=0
+		Merged Map outputs=5480
+		GC time elapsed (ms)=6438
+		CPU time spent (ms)=328350
+		Physical memory (bytes) snapshot=109385437184
+		Virtual memory (bytes) snapshot=296765669376
+		Total committed heap usage (bytes)=134187319296
+	Shuffle Errors
+		BAD_ID=0
+		CONNECTION=0
+		IO_ERROR=0
+		WRONG_LENGTH=0
+		WRONG_MAP=0
+		WRONG_REDUCE=0
+	com.cloudera.ByteBufferRecordReader$READ_COUNTER
+		BYTES_READ=18274704119
+		LOCAL_BYTES_READ=18274704119
+		SCR_BYTES_READ=18274704119
+		ZCR_BYTES_READ=0
+	File Input Format Counters 
+		Bytes Read=18274704119
+	File Output Format Counters 
+		Bytes Written=2741
+	Read counters
+		BYTES_READ = 18274704119
+		LOCAL_BYTES_READ = 18274704119
+		SCR_BYTES_READ = 18274704119
+		ZCR_BYTES_READ = 0
