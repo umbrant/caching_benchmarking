@@ -125,8 +125,11 @@ public class ByteCount {
     }
 
     if (line.hasOption("profile")) {
-      conf.set(MRJobConfig.TASK_MAP_PROFILE_PARAMS,
-          "-agentlib:hprof=cpu=samples,depth=100,interval=1,lineno=y,thread=y,file=%s");
+      conf.setBoolean("mapred.task.profile", true);
+      conf.set("mapred.task.profile.params",
+          "-agentlib:hprof=cpu=samples,depth=100,interval=1ms,lineno=y,thread=y,file=%s");
+      conf.set(MRJobConfig.NUM_MAP_PROFILES, "0");
+      conf.set("mapred.task.profile.maps", "1");
       System.out.println("Profiling map tasks");
     }
 
@@ -141,12 +144,6 @@ public class ByteCount {
 
     Job job = Job.getInstance(conf);
 
-    if (line.hasOption("profile")) {
-      job.setProfileEnabled(true);
-      job.setProfileTaskRange(true, "0");
-      job.setProfileTaskRange(false, "0");
-    }
-    
     job.setInputFormatClass(ByteBufferInputFormat.class);
 
     job.setMapOutputKeyClass(ByteWritable.class);
